@@ -1,0 +1,268 @@
+* [3D] SUPRA-Tex Workbench Usage
+
+
+1. Introduction
+
+- SUPRA-Tex Workbench puts PBR textures (color, roughness, metallic) on an existing 3D mesh, using one image of the same object. Faces visible in the image follow the image, and the hidden sides and back are filled in by AI.
+
+- It is used in a browser page. Drag in a mesh and an image, click a button, and you get a result GLB.
+
+- The mesh can come from anywhere. AI results such as Pixal3D and Idol work, and so does a mesh you made yourself.
+
+- The original SUPRA-Tex is Linux only and its material model (Qwen) is non-commercial. This program is a modified version.
++ It runs on Windows with RTX 20 series to 50 series cards.
++ The material model is replaced with SuperMat, which allows commercial use.
++ Memory use is reduced so it runs on 8GB cards. Precision is chosen automatically: bf16 on RTX 30 and newer, fp16 on RTX 20.
++ It lines up the mesh and the image automatically, and returns the result to the original mesh position.
++ It corrects metallic and roughness so non-metal parts such as skin and cloth do not look shiny.
+
+- Requirements
++ NVIDIA RTX 20 series or newer, 8GB VRAM or more
++ Graphics driver : a version that supports CUDA 12.8 (see 2)
++ Disk space : about 25GB (Python environment about 7GB + models about 17GB)
+
+- Tested hardware
++ RTX 3060 12GB : about 6 minutes per mesh + image
++ RTX 2070 SUPER 8GB : texture baking step about 46 minutes on the first run (including GPU code compile), about 5 minutes 30 seconds from the second run
+
+
+2. Install prerequisites
+
+- Check the graphics driver. Run the line below in cmd and check that CUDA Version at the top right is 12.8 or higher. If it is lower, install the latest driver from the NVIDIA site.
+
+nvidia-smi
+
+- Git must be installed. See the Git section of the ComfyUI portable install and setup document.
+
+- Install Python 3.14 just for SUPRA-Tex. It is separate from ComfyUI's Python. Skip this if it is already installed.
++ Download and run the Windows installer (64-bit), python-3.14.10-amd64.exe, from the address below.
+
+https://www.python.org/downloads/release/python-31410/
+
+- On the first screen, do not check Use admin privileges or Add python.exe to PATH. This keeps it from mixing with other Python installs.
+
+- Click Customize installation. On the Optional Features screen, just click Next.
+
+- On the Advanced Options screen, do not check any free-threaded option. Change the install location to the path below and click Install.
+
+D:\Programs\Python\Python314
+
+- Installing to C:\Programs\Python\Python314 on the C drive also works. The setup file looks in both places. If the C drive is an SSD, installing on the D drive is recommended because of disk space.
+
+
+3. Install SUPRA-Tex
+
+- Make a folder to install into. This guide uses C:\Programs. D:\Programs also works. The path must not contain Korean characters.
+
+- Type cmd in the address bar of the C:\Programs folder to open the black window, and run the line below.
++ Right-click to paste.
+
+git clone https://github.com/Supra-3D/SUPRA-Tex.git
+
+- Go into the downloaded folder and lock it to the version the workbench was made for, with the lines below.
+
+cd SUPRA-Tex
+
+git checkout --detach cee4435652d0f23737bd28d5704e0fae9830b411
+
+- Download SUPRA-Tex Workbench from the address below with Code > Download ZIP, and unzip it.
+
+https://github.com/Linchwe/SUPRA-Tex-Workbench-Windows
+
+- Open the overlay folder inside it, put everything inside overlay into the folder below, and choose to overwrite. The overlay folder contains 2 launch files, the workbench (workbench folder), the material model code, the Windows patches and test files.
+
+C:\Programs\SUPRA-Tex
+
+- Double-click Setup-SUPRA-Tex.cmd in the same folder. It runs the 7 steps below by itself. It downloads about 7GB including PyTorch, so it takes a while.
++ 1/7 Check the SUPRA-Tex version
++ 2/7 Find Python 3.14
++ 3/7 Create the Python environment (.venv314)
++ 4/7 Install PyTorch and Triton
++ 5/7 Install packages and SUPRA-Tex
++ 6/7 Install CUDA extensions (Windows builds for RTX 20-50)
++ 7/7 Check the install
+
+- It is done when "Setup finished / 설치 완료" appears at the end. The 7/7 line must show your graphics card name and CUDA True.
++ The numbers in brackets at the end are the GPU generation. RTX 20 is (7, 5), RTX 30 is (8, 6), RTX 40 is (8, 9), RTX 50 is (12, 0).
+
+- If it stops, it shows which step it stopped at. Copy the last 30 lines of the window and share them with an LLM. After fixing it, run it again. Finished steps go by quickly.
+
+
+4. Run the workbench
+
+- Close every program that uses the graphics card, such as ComfyUI. VRAM is tight on 8GB cards.
+
+- Double-click Start-SUPRA-Tex.cmd in the C:\Programs\SUPRA-Tex folder. A black window opens, and the browser opens the address below.
+
+http://127.0.0.1:8390
+
+- If the browser does not open by itself, type the address above.
+
+- The menus are in English at first. Click the "한국어" button at the bottom left to switch to Korean. The choice is remembered next time.
+
+- To close, click "Close workbench" at the bottom left.
++ If a task is running, a window asks whether to stop it and close. Click OK.
++ When the page says it is closed, close the browser tab and the black window.
+
+- If you only close the browser window, the program keeps running. Open the address above again to come back.
+
+- Closing the black window with X shuts down the workbench, but if a bake was running, its process can stay and keep using VRAM. The "Close workbench" button is the most reliable way. If you already closed the window, look at Task Manager > Performance > GPU > Dedicated GPU memory, and if it stays full, end python.exe in the Details tab.
+
+
+5. First test (install check)
+
+- Check the install with the plant example included in the overlay folder. The example mesh has its size, position and angle changed on purpose, so it also checks the automatic alignment.
+
+- In the "Bake texture" page on the left, drag the two files below into the 01 Input boxes. They are in the C:\Programs\SUPRA-Tex\mesh_texture_test folder.
++ Mesh box : test_pitcher_moved.glb
++ Image box : pitcher_cond.png
+
+- Leave 02 Settings as they are and click "Start baking".
+
+- The first run takes a long time. Do not close it even if the page looks stuck for a while.
++ It downloads about 17GB of models into C:\Programs\SUPRA-Tex\models. (SUPRA-Tex completion model, TRELLIS.2 VAE, Stable Diffusion 2.1, SuperMat)
++ It compiles GPU code. On RTX 20 series this can take 40 minutes or more.
++ From the second run it uses the downloaded models and compiled code, and takes about 5-6 minutes.
+
+- It is fine if you see the following at the end.
++ All 5 steps in the progress area are green and it says "Done"
++ 03 Fit check : overlap (IoU) about 0.94, rotation fix yaw about -7.5°
++ 04 Result : the textured plant is shown in 3D
+
+
+6. Prepare the mesh and image
+
+- Mesh
++ Format : GLB / OBJ / PLY / STL (up to 512MB)
++ Direction : In Blender's Front view (numpad 1), the front of the object must face the screen with the top pointing up the Z axis. Exporting with File > Export > glTF 2.0 (.glb) and the default settings (+Y Up on) gives the right direction.
++ Small misalignments within 10° left-right and 5° up-down are corrected automatically.
+
+- Image
++ It must show the same object as the mesh, seen from the front.
++ It must be a transparent PNG with the background removed. An image with a background is refused when uploaded.
++ Pictures cut off at the image edge, such as a bust, are fine.
+
+- Which meshes match well
++ Pixal3D, Idol : They build the shape to match the image, so the texture lines up well. Recommended most.
++ Meshes with newly refined detail : The shape is sharp, but if small decorations such as necklaces end up in different places than in the image, the texture can be off there. Large forms such as eyes, nose and mouth mostly match.
+
+
+7. Bake textures
+
+- 01 Input
++ Mesh box : Drag in the mesh prepared in 6, or click to choose it.
++ Image box : Put in the image with the background removed.
+
+- 02 Settings : Use them as they are at first.
++ Rotate mesh : Rotate by 90°, 180° or 270° when the mesh faces sideways or backwards.
++ Field of view : Auto. For objects where the field of view is hard to tell, such as a human bust, a narrow one is chosen.
++ Metallic correction : 0.45. Metallic values below this are set to 0 (non-metal). If metal is missed, lower it to 0.35. 0 turns it off.
++ Roughness correction : 0.6. Non-metal roughness below this is raised to this value to remove shine. For naturally glossy objects such as glass, set it to 0 to turn it off.
++ Max faces : 500,000. The face count of the result mesh.
++ Seed : Leave empty for the default. A different number fills the hidden sides differently.
++ Auto-correct small rotations : on
++ File is Z-up : off. Turn it on only for files saved with Z as up.
++ Return result to the original mesh position : on. The result comes out in the same position, size and direction as the original mesh, so you can overlay them in Blender.
+
+- "Fit preview (about 1 min)" only fits the camera, without the graphics card, and shows it in 03 Fit check. Checking a new mesh with this first is recommended.
+
+- "Start baking" runs the 5 steps below. The progress area shows the current step and the elapsed time.
++ 1. Read mesh
++ 2. Fit camera
++ 3. Material maps : SuperMat
++ 4. Bake texture : SUPRA-Tex. This takes the longest.
++ 5. Save
+
+- To stop, click "Stop task".
+
+- Open "Task log" below the progress area to see detailed progress.
+
+
+8. Check and download the result
+
+- 03 Fit check
++ The mesh outline is drawn in red over the image. It is fine if it follows the object edge.
++ An overlap (IoU) of 0.9 or more is a good fit.
++ Below 0.8 a notice is shown. If the task log suggests a direction such as "--yaw 180", set Rotate mesh to that value and run again.
+
+- 04 Result
++ The result is shown in 3D. Left-drag to rotate, scroll to zoom, right-drag to move.
++ Click "Download result GLB" to download it as meshname_tex.glb. (usually to the Downloads folder)
+
+- The result mesh
++ SUPRA-Tex rebuilds the polygons and UVs following the shape of the original mesh. The shape is the same, but the original polygons and UVs are not kept.
++ If you need the texture on the original polygons and UVs, bake it onto the original mesh in Blender with Bake_PBR_HighToLow.py.
++ The textures are a 4096 color map and a metallic/roughness map.
+
+
+9. Task history and storage cleanup
+
+- Each task saves its inputs, fit result, log and result GLB in the folder below.
+
+C:\Programs\SUPRA-Tex\workbench_data
+
+- In "Task history" on the left, reopen a past task with "Open →" to view and download its result. Delete them one by one with "Delete".
+
+- Cleaning up after downloading the result GLBs you need is recommended. Click "Clear history" at the top right of the "Task history" page, and click OK when the count and size are shown.
++ All task history and uploaded files are deleted.
++ Result GLBs downloaded by the browser (Downloads folder) are not deleted.
++ Models (models folder) and the Python environment (.venv314) are not deleted.
++ If a task is running, nothing is deleted and only a notice is shown.
+
+
+10. When an error occurs
+
+- When a task fails, the progress area shows "Failed" and the task log opens. Copy the last 30 lines of the log and share them with an LLM.
+
+- "no transparent background" when adding an image : Use a PNG with the background removed.
+
+- "Python 3.14 was not found" in Setup : Install Python 3.14 to C:\Programs\Python\Python314 as in 2. If you installed it somewhere else, tell Setup where it is with the line below in a cmd window, then run Setup-SUPRA-Tex.cmd from that same window.
+
+set SUPRATEX_PYTHON=E:\your\path\python.exe
+
+- "This SUPRA-Tex is a different version" in Setup : The git checkout line in 3 was not run. Run that line in the SUPRA-Tex folder and run Setup again.
+
+- "PyTorch cannot see the NVIDIA GPU" in Setup : Update the graphics driver to the latest version.
+
+- "Setup has not been run" when starting : Run Setup-SUPRA-Tex.cmd first.
+
+- The page does not open and the black window says "Port 8390 is in use" : The workbench is already running. Open http://127.0.0.1:8390 in the browser.
+
+- module 'ast' has no attribute 'Num' : A different Triton version is installed. Run Setup-SUPRA-Tex.cmd again.
+
+- no kernel image is available for execution on the device : Different CUDA extension files are installed. Run Setup-SUPRA-Tex.cmd again.
+
+- CUDA out of memory : Close every other program that uses the graphics card and run again.
+
+- Low overlap (IoU) : Check the mesh front direction, that the image shows the same object, and that the background was removed.
+
+- The texture looks shifted (eyes, nose, mouth and so on) : The mesh and image have different shapes. As in 6, Pixal3D or Idol meshes match best.
+
+- The warnings below can appear in the log and do not affect the result. Ignore them.
++ huggingface_hub cache-system uses symlinks
++ Xet Storage is enabled for this repo, but the 'hf_xet' package is not installed
++ Using torch.cross without specifying the dim arg is deprecated
++ PYTORCH_CUDA_ALLOC_CONF is deprecated
++ BuildBackendWarning (during Setup)
+
+
+11. License (for commercial use)
+
+- SUPRA-Tex code and completion model : MIT. Commercial use is allowed.
+
+- TRELLIS.2 VAE (Microsoft) : MIT. Commercial use is allowed.
+
+- SuperMat (material model) : MIT. Its base model Stable Diffusion 2.1 is CreativeML Open RAIL++-M. Commercial use is allowed.
+
+- The original SUPRA-Tex material model, Qwen-Image, is non-commercial only, so this program neither uses nor downloads it.
+
+- Windows CUDA extension builds (voxta-ai) : Follow the license of each original (CuMesh, FlexGEMM, nvdiffrast, o-voxel).
+
+- three.js (3D result view) : MIT.
+
+- Workbench page, mesh_texture.py, Windows patches : Additions on top of SUPRA-Tex. Without the precision and memory settings, they compute the same as the original.
+
+- Sources
++ SUPRA-Tex : https://github.com/Supra-3D/SUPRA-Tex
++ SuperMat : https://github.com/hyj542682306/SuperMat
++ Windows CUDA extension builds : https://github.com/voxta-ai/voxta-python-packaging/releases/tag/trellis2-wheels-1.0.0

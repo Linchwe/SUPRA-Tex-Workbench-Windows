@@ -1,0 +1,3 @@
+# Keep Windows line endings in cmd files and guides
+*.cmd -text
+*.txt -text

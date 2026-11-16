@@ -1,0 +1,43 @@
+This project is an unofficial Windows port and workbench for SUPRA-Tex.
+It is not made or endorsed by the SUPRA-Tex authors.
+
+The MIT License in LICENSE covers the code written for this project:
+overlay/workbench/ (except overlay/workbench/web/vendor/), overlay/mesh_texture.py,
+overlay/Setup-SUPRA-Tex.cmd, overlay/Start-SUPRA-Tex.cmd and the documents in docs/.
+Third-party code keeps its own license, as listed below.
+
+SUPRA-Tex
+  Copyright (c) 2026 SUPRA-Tex Authors. MIT License (licenses/SUPRA-Tex-LICENSE.txt).
+  https://github.com/Supra-3D/SUPRA-Tex
+  overlay/supratex/inference/pipeline.py and overlay/supratex/pipelines/observation_guided_completion.py
+  are modified copies of SUPRA-Tex files at commit cee4435652d0f23737bd28d5704e0fae9830b411.
+  Changes: optional reduced precision (bf16/fp16) and GPU block streaming for low-VRAM cards.
+  overlay/mesh_texture_test/ is made from the SUPRA-Tex pitcher_plant example
+  (the mesh was moved, scaled and rotated for the install check).
+  overlay/requirements-win-py314.txt is based on the SUPRA-Tex requirements
+  (numpy and scipy versions changed for Python 3.14).
+
+SuperMat
+  MIT License (overlay/third_party/SuperMat/LICENSE).
+  https://github.com/hyj542682306/SuperMat
+  The inference code in overlay/third_party/SuperMat/src/ is included unchanged.
+  The SuperMat weights (oyiya/SuperMat) and Stable Diffusion 2.1
+  (sd2-community/stable-diffusion-2-1, CreativeML Open RAIL++-M) are downloaded at run time
+  and are not included in this repository.
+
+three.js
+  Copyright 2010-2024 three.js authors. MIT License (overlay/workbench/web/vendor/three-LICENSE.txt).
+  https://github.com/mrdoob/three.js
+  overlay/workbench/web/vendor/ contains unchanged three.js r170 files.
+
+Downloaded at install or run time (not included)
+  PyTorch, Triton for Windows and Python packages: their own licenses.
+  Windows CUDA extension builds of CuMesh, FlexGEMM, nvdiffrast and o-voxel by voxta-ai:
+    https://github.com/voxta-ai/voxta-python-packaging/releases/tag/trellis2-wheels-1.0.0
+    Each follows the license of its original project.
+  SUPRA-Tex completion model (supra3d/supra-tex): MIT.
+  TRELLIS.2 VAE (microsoft/TRELLIS.2-4B): MIT.
+
+Not used
+  Qwen-Image, the material model of the original SUPRA-Tex, is under a non-commercial license.
+  This project does not use or download it.

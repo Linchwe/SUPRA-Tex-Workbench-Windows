@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SUPRA-Tex Workbench</title>
+<link rel="stylesheet" href="/static/style.css">
+<script type="importmap">{"imports":{"three":"/static/vendor/three.module.min.js","three/addons/":"/static/vendor/addons/"}}</script>
+</head>
+<body>
+<aside class="side">
+  <div class="brand"><div class="logo">S</div><div><strong>SUPRA-Tex</strong><small data-i18n="brand_sub">메시 텍스처 굽기 워크벤치</small></div></div>
+  <nav>
+    <button class="nav-item active" data-page="bake"><span>◈</span><b data-i18n="nav_bake">텍스처 굽기</b></button>
+    <button class="nav-item" data-page="history"><span>◷</span><b data-i18n="nav_history">작업 기록</b></button>
+  </nav>
+  <div class="side-foot">
+    <div class="lang"><button data-lang="en">English</button><button data-lang="ko">한국어</button></div>
+    <div id="gpu" class="muted small"></div>
+    <div id="busy-badge" class="badge" hidden></div>
+    <button id="shutdown" class="ghost" data-i18n="shutdown">워크벤치 끄기</button>
+  </div>
+</aside>
+
+<main>
+  <section id="page-bake" class="page active">
+    <header class="head">
+      <div><h1 data-i18n="bake_title">메시에 이미지로 PBR 텍스처 입히기</h1><p class="muted" data-i18n="bake_desc">같은 물체의 메시와, 배경을 지운 이미지를 넣으세요. 이미지에 보이는 면은 이미지를 따르고, 안 보이는 면은 AI 가 채웁니다.</p></div>
+    </header>
+
+    <div class="grid">
+      <div class="card">
+        <h2><i>01</i> <span data-i18n="step_input">입력</span></h2>
+        <div class="drops">
+          <label class="drop" id="drop-mesh">
+            <input type="file" id="file-mesh" accept=".glb,.gltf,.obj,.ply,.stl" hidden>
+            <div class="drop-icon">⬡</div>
+            <b data-i18n="mesh_label">메시</b>
+            <small data-i18n="mesh_hint">GLB / OBJ / PLY / STL. 정면이 앞(+Z, 블렌더 정면 뷰)을 보게</small>
+            <div class="file-name" id="mesh-name"></div>
+          </label>
+          <label class="drop" id="drop-image">
+            <input type="file" id="file-image" accept=".png,.webp" hidden>
+            <img id="image-thumb" alt="" hidden>
+            <div class="drop-icon" id="image-icon">▣</div>
+            <b data-i18n="image_label">이미지</b>
+            <small data-i18n="image_hint">배경을 지운 투명 PNG</small>
+            <div class="file-name" id="image-name"></div>
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2><i>02</i> <span data-i18n="step_options">설정</span></h2>
+        <div class="opts">
+          <label><span data-i18n="opt_yaw">메시 방향 돌리기</span>
+            <select id="opt-yaw"><option value="0">0°</option><option value="90">90°</option><option value="180">180°</option><option value="270">270°</option></select></label>
+          <label><span data-i18n="opt_fov">화각</span>
+            <select id="opt-fov"><option value="" data-i18n="auto">자동</option><option>10</option><option>20</option><option>30</option><option>40</option><option>50</option></select></label>
+          <label><span data-i18n="opt_metal">금속성 보정</span><input id="opt-metal" type="number" min="0" max="1" step="0.05" value="0.45"></label>
+          <label><span data-i18n="opt_rough">거칠기 보정</span><input id="opt-rough" type="number" min="0" max="1" step="0.05" value="0.6"></label>
+          <label><span data-i18n="opt_faces">면 수 상한</span>
+            <select id="opt-faces"><option value="500000">500,000</option><option value="1000000">1,000,000</option><option value="250000">250,000</option></select></label>
+          <label><span data-i18n="opt_seed">시드</span><input id="opt-seed" type="number" min="0" step="1" value=""></label>
+          <label class="check"><input id="opt-rotate" type="checkbox" checked><span data-i18n="opt_rotate">작은 회전 자동 보정</span></label>
+          <label class="check"><input id="opt-zup" type="checkbox"><span data-i18n="opt_zup">Z 가 위쪽인 파일</span></label>
+          <label class="check"><input id="opt-restore" type="checkbox" checked><span data-i18n="opt_restore">결과를 원래 메시 위치로 되돌리기</span></label>
+        </div>
+        <p class="muted small" data-i18n="opt_note">처음에는 기본값 그대로 쓰세요. 유리처럼 매끈한 물체는 거칠기 보정을 0 으로, 금속이 덜 잡히면 금속성 보정을 0.35 로 낮춥니다.</p>
+      </div>
+    </div>
+
+    <div class="card run">
+      <div class="run-buttons">
+        <button id="btn-preview" data-i18n="btn_preview">맞춤 미리보기 (약 1분)</button>
+        <button id="btn-run" class="primary" data-i18n="btn_run">텍스처 굽기 시작</button>
+        <button id="btn-cancel" class="danger" data-i18n="btn_cancel" hidden>작업 멈추기</button>
+      </div>
+      <p class="muted small" id="run-help"></p>
+      <ol class="steps" id="steps">
+        <li data-i18n="s1">메시 읽기</li><li data-i18n="s2">카메라 맞추기</li><li data-i18n="s3">재질 지도</li><li data-i18n="s4">텍스처 굽기</li><li data-i18n="s5">저장</li>
+      </ol>
+      <div class="progress-line"><span id="elapsed"></span><span id="state-text"></span></div>
+      <details id="log-box"><summary data-i18n="log">작업 로그</summary><pre id="log"></pre></details>
+    </div>
+
+    <div class="grid result" id="result" hidden>
+      <div class="card">
+        <h2><i>03</i> <span data-i18n="fit_title">맞춤 확인</span></h2>
+        <img id="fit-img" alt="">
+        <p class="small" id="fit-text"></p>
+        <p class="muted small" data-i18n="fit_note">빨간 선이 메시 윤곽입니다. 물체 테두리와 맞으면 정상입니다. 겹침이 0.8 보다 낮으면 메시 방향이나 이미지를 확인하세요.</p>
+      </div>
+      <div class="card">
+        <h2><i>04</i> <span data-i18n="result_title">결과</span></h2>
+        <div id="viewer"><div class="viewer-empty" id="viewer-empty" data-i18n="viewer_empty">텍스처 굽기가 끝나면 여기에 3D 결과가 나옵니다.</div></div>
+        <div class="row"><a id="download" class="button primary" hidden data-i18n="download">결과 GLB 받기</a><span class="muted small" id="result-path"></span></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="page-history" class="page">
+    <header class="head">
+      <div><h1 data-i18n="history_title">작업 기록</h1><p class="muted" data-i18n="history_desc">작업마다 입력, 맞춤 결과, 로그, 결과 GLB 가 저장됩니다. 필요한 결과를 받은 뒤에는 기록을 정리하세요.</p></div>
+      <div class="row"><button id="btn-refresh" data-i18n="refresh">새로고침</button><button id="btn-clear" class="danger" data-i18n="clear">기록 정리</button></div>
+    </header>
+    <div id="history-list"></div>
+  </section>
+</main>
+<div id="toast" hidden></div>
+<script type="module" src="/static/app.js"></script>
+</body>
+</html>

@@ -28,10 +28,11 @@ WEB = Path(__file__).resolve().parent / "web"
 DATA = ROOT / "workbench_data"
 UPLOADS = DATA / "uploads"
 JOBS = DATA / "jobs"
+CUTOUTS = DATA / "cutouts"      # 배경을 지운 이미지 (같은 이미지는 다시 지우지 않게)
 PORT = int(os.environ.get("SUPRATEX_WORKBENCH_PORT", "8390"))
 MAX_UPLOAD = 512 * 1024 * 1024
 MESH_EXT = {".glb", ".gltf", ".obj", ".ply", ".stl"}
-IMAGE_EXT = {".png", ".webp"}
+IMAGE_EXT = {".png", ".webp", ".jpg", ".jpeg"}
 ID_RE = re.compile(r"^[0-9a-f]{8,40}$")
 
 LOCK = threading.RLock()
@@ -128,6 +129,7 @@ def job_summary(path):
     state["id"] = path.name
     case = path / "result_case"
     state["has_preview"] = (case / "fit_preview.png").is_file()
+    state["cutout"] = (case / "cutout.png").is_file()
     state["has_result"] = (path / "result.glb").is_file()
     fit = read_json(case / "transform.json")
     if fit:
@@ -251,7 +253,7 @@ def delete_job(jid):
 
 def usage():
     out = {}
-    for name, root in (("jobs", JOBS), ("uploads", UPLOADS)):
+    for name, root in (("jobs", JOBS), ("uploads", UPLOADS), ("cutouts", CUTOUTS)):
         items = [p for p in root.iterdir()] if root.is_dir() else []
         out[name] = {"count": len(items), "bytes": sum(folder_size(p) if p.is_dir() else p.stat().st_size for p in items)}
     return out
@@ -263,7 +265,7 @@ def clear_all():
             raise RuntimeError("busy")
         before = usage()
         failed = []
-        for root in (JOBS, UPLOADS):
+        for root in (JOBS, UPLOADS, CUTOUTS):
             if not root.is_dir():
                 continue
             for child in list(root.iterdir()):
@@ -370,6 +372,7 @@ class Handler(BaseHTTPRequestHandler):
                 files = {"result.glb": path / "result.glb",
                          "fit_preview.png": path / "result_case" / "fit_preview.png",
                          "condition.png": path / "result_case" / "condition_rgba.png",
+                         "cutout.png": path / "result_case" / "cutout.png",
                          "albedo.png": path / "result_case" / "albedo.png",
                          "mra.png": path / "result_case" / "mra.png",
                          "log.txt": path / "log.txt"}
@@ -455,12 +458,11 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def check_image(path):
+    """이미지로 열리는지만 본다. 투명 배경이 없으면 작업할 때 자동으로 배경을 지운다."""
     try:
         from PIL import Image
         with Image.open(path) as img:
             img.load()
-            if img.mode not in ("RGBA", "LA") and not (img.mode == "P" and "transparency" in img.info):
-                return "no_alpha"
     except Exception:
         return "bad_image"
     return None

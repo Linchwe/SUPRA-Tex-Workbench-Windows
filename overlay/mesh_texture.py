@@ -7,6 +7,8 @@ SUPRA-Tex 메시 + 이미지 -> PBR 텍스처 (한 번에 실행)
   이미지에 보이는 면은 이미지를 따르고, 안 보이는 옆면/뒷면은 SUPRA-Tex 가 채운다.
 
 하는 일
+  0. 배경 지우기 (GPU) : 이미지에 투명 배경이 없으면 BiRefNet 으로 배경을 지운다.
+                          처음 한 번 모델(약 900MB)을 models 폴더에 받는다. 끝나면 VRAM 을 비운다.
   1. 메시 정리 (CPU)   : 가운데로 옮기고 크기를 SUPRA-Tex 기준 상자(-0.5~0.5)에 맞춘다.
   2. 카메라 맞춤 (CPU) : 메시 실루엣과 이미지 알파(투명 배경)가 가장 잘 겹치도록
                           화각, 작은 회전(좌우 ±10도, 위아래 ±5도), 이미지 위치/크기를 찾는다.
@@ -18,7 +20,7 @@ SUPRA-Tex 메시 + 이미지 -> PBR 텍스처 (한 번에 실행)
 
 조건
   이미지와 메시는 같은 물체여야 하고, 메시는 정면이 +Z(블렌더 기준 -Y, 정면 뷰에서 보이는 쪽)를 봐야 한다.
-  이미지는 배경을 지운 투명 PNG 여야 한다.
+  이미지는 PNG / WEBP / JPG. 배경이 있으면 자동으로 지운다. 이미 투명 배경이면 그대로 쓴다.
   상반신처럼 이미지 가장자리에서 잘린 그림도 된다. 잘린 바깥은 맞춤 비교에서 뺀다.
   결과 메시는 SUPRA-Tex 가 새로 만든 메시다. (원래 메시의 폴리곤/UV 는 그대로 남지 않는다)
 
@@ -39,6 +41,7 @@ SUPRA-Tex 메시 + 이미지 -> PBR 텍스처 (한 번에 실행)
     --metal-cut 값       금속성 보정 (기본 0.45). 이 값보다 낮은 금속성은 0(비금속)으로 내린다.
                          SuperMat 은 피부/천/식물 같은 비금속도 0.2~0.4 로 내는 경우가 있어서다.
                          값+0.1 보다 높은 곳(진짜 금속)은 그대로 둔다. 0 이면 보정하지 않는다.
+    --no-bg-remove       배경 자동 지우기를 끈다 (투명 배경이 없는 이미지는 멈춘다)
     --rough-min 값       거칠기 보정 (기본 0.6). 비금속의 거칠기가 이 값보다 낮으면 이 값으로 올린다.
                          SuperMat 은 피부도 0.4 정도로 매끈하게 내서 번들거리기 때문이다.
                          금속은 그대로 둔다. 유리/에나멜처럼 원래 매끈한 물체는 0 으로 끈다.
@@ -310,16 +313,105 @@ def fit_camera(mesh, alpha_mask, base_R, fov_fixed, rotate_search):
 # --------------------------------------------------------------------------------------
 # 케이스 폴더 만들기
 # --------------------------------------------------------------------------------------
-def load_rgba(path):
+def has_cutout_alpha(path):
+    """이미지에 쓸 만한 투명 배경(알파)이 있으면 True."""
+    with Image.open(path) as img:
+        img.load()
+        if img.mode not in ("RGBA", "LA", "PA") and not (img.mode == "P" and "transparency" in img.info):
+            return False
+        alpha = np.asarray(img.convert("RGBA"))[:, :, 3] > 127
+    return 0.0 < alpha.mean() <= 0.98 and alpha.sum() >= 100
+
+
+def load_rgba(path, removed=False):
     img = Image.open(path)
     img.load()
-    if img.mode not in ("RGBA", "LA") and not (img.mode == "P" and "transparency" in img.info):
-        raise SystemExit(L("이미지에 투명 배경(알파)이 없습니다. 배경을 지운 PNG 를 넣어 주세요.", "The image has no transparent background (alpha). Use a PNG with the background removed."))
+    if img.mode not in ("RGBA", "LA", "PA") and not (img.mode == "P" and "transparency" in img.info):
+        raise SystemExit(L("이미지에 투명 배경(알파)이 없습니다. 배경 자동 지우기를 켜거나 배경을 지운 PNG 를 넣어 주세요.", "The image has no transparent background (alpha). Turn on automatic background removal or use a PNG with the background removed."))
     rgba = img.convert("RGBA")
     alpha = np.asarray(rgba)[:, :, 3] > 127
     if alpha.mean() > 0.98 or alpha.sum() < 100:
+        if removed:
+            raise SystemExit(L("배경을 지웠지만 물체를 찾지 못했습니다. 물체가 또렷하게 보이는 이미지를 쓰거나, 배경을 직접 지운 PNG 를 넣어 주세요.", "The background was removed but no object was found. Use an image where the object is clearly visible, or a PNG with the background removed by hand."))
         raise SystemExit(L("이미지 알파가 거의 전부 불투명하거나 비어 있습니다. 배경을 지운 PNG 인지 확인하세요.", "The image alpha is almost fully opaque or empty. Check that the background was removed."))
     return rgba, alpha
+
+
+# --------------------------------------------------------------------------------------
+# 0. 배경 지우기 (BiRefNet, MIT 라이선스. 별도 프로세스: 끝나면 VRAM 이 완전히 비워진다)
+# --------------------------------------------------------------------------------------
+BIREFNET_REPO = "ZhengPeng7/BiRefNet"
+BIREFNET_REV = "e2bf8e4460fc8fa32bba5ea4d94b3233d367b0e4"   # 받는 코드를 이 버전으로 고정한다
+BIREFNET_SIZE = 1024
+CUTOUT_CACHE = ROOT / "workbench_data" / "cutouts"          # 같은 이미지는 다시 지우지 않는다
+
+
+def run_cutout(src, dst, cache_dir):
+    """src 이미지의 배경을 지워 dst(RGBA PNG)로 저장한다. --_cutout 으로 따로 실행된다."""
+    import torch
+    from PIL import ImageOps
+    from torchvision import transforms
+    from transformers import AutoModelForImageSegmentation
+
+    cuda = torch.cuda.is_available()
+    device = "cuda" if cuda else "cpu"
+    where = torch.cuda.get_device_name(0) if cuda else "CPU"
+    print(L("[배경]", "[background]") + f" BiRefNet / {where}", flush=True)
+    torch.set_float32_matmul_precision("high")
+    model = AutoModelForImageSegmentation.from_pretrained(
+        BIREFNET_REPO, revision=BIREFNET_REV, trust_remote_code=True,
+        cache_dir=str(cache_dir), token=False)
+    model.to(device).eval()
+    if cuda:
+        model.half()
+
+    with Image.open(src) as img:
+        img.load()
+        img = ImageOps.exif_transpose(img).convert("RGB")
+    prep = transforms.Compose([
+        transforms.Resize((BIREFNET_SIZE, BIREFNET_SIZE)),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+    ])
+    x = prep(img).unsqueeze(0).to(device)
+    if cuda:
+        x = x.half()
+    with torch.no_grad():
+        pred = model(x)[-1].sigmoid().float().cpu()[0, 0].numpy()
+    mask = Image.fromarray((np.clip(pred, 0, 1) * 255).astype(np.uint8)).resize(img.size, Image.Resampling.BICUBIC)
+    out = img.copy()
+    out.putalpha(mask)
+    dst = Path(dst)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    tmp = dst.with_name(dst.stem + "_tmp.png")
+    out.save(tmp)
+    os.replace(tmp, dst)
+    return 0
+
+
+def prepare_image(image_path, case_dir, cache_dir, python):
+    """투명 배경이 없으면 배경을 지운 이미지 경로를, 있으면 원래 경로를 돌려준다."""
+    if has_cutout_alpha(image_path):
+        return image_path, False
+    import hashlib
+    key = hashlib.sha1(Path(image_path).read_bytes() + BIREFNET_REV.encode()).hexdigest()[:16]
+    cached = CUTOUT_CACHE / f"{key}.png"
+    if cached.is_file():
+        print("        " + L("투명 배경이 없어서 배경을 지웠습니다. (전에 지운 결과를 다시 씀)", "No transparent background, so the background was removed. (reused an earlier result)"), flush=True)
+    else:
+        print("        " + L("투명 배경이 없어서 배경을 지우는 중 (BiRefNet). 처음 한 번은 모델(약 900MB)을 받습니다.",
+                             "No transparent background, removing it (BiRefNet). The first time downloads the model (about 900MB)."), flush=True)
+        env = dict(os.environ)
+        env.setdefault("HF_HUB_DISABLE_IMPLICIT_TOKEN", "1")
+        cmd = [python, str(Path(__file__).resolve()), "--_cutout", str(image_path), str(cached),
+               "--supermat-cache", str(cache_dir)]
+        if subprocess.run(cmd, env=env).returncode != 0 or not cached.is_file():
+            raise SystemExit(L("배경 지우기에서 멈췄습니다. 위 오류를 확인하세요. 배경을 직접 지운 투명 PNG 를 넣어도 됩니다.",
+                               "Stopped at background removal. See the error above. You can also use a transparent PNG with the background removed by hand."))
+    case_dir.mkdir(parents=True, exist_ok=True)
+    cutout = case_dir / "cutout.png"
+    cutout.write_bytes(cached.read_bytes())
+    return cutout, True
 
 
 def write_case(case_dir, mesh, rgba, result):
@@ -519,9 +611,13 @@ def main():
     ap.add_argument("--supermat-python", default=sys.executable)
     ap.add_argument("--metal-cut", type=float, default=0.45)
     ap.add_argument("--rough-min", type=float, default=0.6)
+    ap.add_argument("--no-bg-remove", action="store_true")
     ap.add_argument("--_supermat", help=argparse.SUPPRESS)
+    ap.add_argument("--_cutout", nargs=2, help=argparse.SUPPRESS)
     args, extra = ap.parse_known_args()
 
+    if args._cutout:
+        return run_cutout(Path(args._cutout[0]), Path(args._cutout[1]), Path(args.supermat_cache))
     if args._supermat:
         run_supermat(Path(args._supermat), Path(args.supermat_cache), args.supermat_dtype,
                      args.seed if args.seed is not None else 0, args.metal_cut, args.rough_min)
@@ -541,7 +637,10 @@ def main():
     mesh = load_mesh(mesh_path)
     print("        " + L(f"점 {len(mesh.vertices):,}개, 면 {len(mesh.faces):,}개", f"{len(mesh.vertices):,} vertices, {len(mesh.faces):,} faces"), flush=True)
     base_R = rot_y(args.yaw) @ (rot_x(-90) if args.zup else np.eye(3))
-    rgba, alpha = load_rgba(image_path)
+    removed = False
+    if not args.no_bg_remove:
+        image_path, removed = prepare_image(image_path, case_dir, Path(args.supermat_cache), args.supermat_python)
+    rgba, alpha = load_rgba(image_path, removed)
 
     print(f"[{stamp()}] 2/5 " + L("카메라 맞추는 중 (1~2분)", "Fitting camera (1-2 min)"), flush=True)
     cut = ImageFit(alpha).cut_names()

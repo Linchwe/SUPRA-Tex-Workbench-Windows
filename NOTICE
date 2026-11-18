@@ -37,6 +37,9 @@ Downloaded at install or run time (not included)
     Each follows the license of its original project.
   SUPRA-Tex completion model (supra3d/supra-tex): MIT.
   TRELLIS.2 VAE (microsoft/TRELLIS.2-4B): MIT.
+  BiRefNet background removal model and its model code (ZhengPeng7/BiRefNet): MIT.
+    https://github.com/ZhengPeng7/BiRefNet
+    Downloaded only when an image without a transparent background is used.
 
 Not used
   Qwen-Image, the material model of the original SUPRA-Tex, is under a non-commercial license.

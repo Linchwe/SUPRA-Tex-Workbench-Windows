@@ -9,8 +9,8 @@ const $ = (s) => document.querySelector(s);
 const T = {
   ko: {
     brand_sub:'메시 텍스처 굽기 워크벤치', nav_bake:'텍스처 굽기', nav_history:'작업 기록', shutdown:'워크벤치 끄기',
-    bake_title:'메시에 이미지로 PBR 텍스처 입히기', bake_desc:'같은 물체의 메시와, 배경을 지운 이미지를 넣으세요. 이미지에 보이는 면은 이미지를 따르고, 안 보이는 면은 AI 가 채웁니다.',
-    step_input:'입력', mesh_label:'메시', mesh_hint:'GLB / OBJ / PLY / STL. 정면이 앞(+Z, 블렌더 정면 뷰)을 보게', image_label:'이미지', image_hint:'배경을 지운 투명 PNG',
+    bake_title:'메시에 이미지로 PBR 텍스처 입히기', bake_desc:'같은 물체의 메시와 이미지를 넣으세요. 이미지 배경은 자동으로 지웁니다. 이미지에 보이는 면은 이미지를 따르고, 안 보이는 면은 AI 가 채웁니다.',
+    step_input:'입력', mesh_label:'메시', mesh_hint:'GLB / OBJ / PLY / STL. 정면이 앞(+Z, 블렌더 정면 뷰)을 보게', image_label:'이미지', image_hint:'PNG / JPG / WEBP. 배경은 자동으로 지움',
     step_options:'설정', opt_yaw:'메시 방향 돌리기', opt_fov:'화각', auto:'자동', opt_metal:'금속성 보정', opt_rough:'거칠기 보정', opt_faces:'면 수 상한', opt_seed:'시드',
     opt_rotate:'작은 회전 자동 보정', opt_zup:'Z 가 위쪽인 파일', opt_restore:'결과를 원래 메시 위치로 되돌리기',
     opt_note:'처음에는 기본값 그대로 쓰세요. 유리처럼 매끈한 물체는 거칠기 보정을 0 으로, 금속이 덜 잡히면 금속성 보정을 0.35 로 낮춥니다.',
@@ -21,23 +21,24 @@ const T = {
     history_title:'작업 기록', history_desc:'작업마다 입력, 맞춤 결과, 로그, 결과 GLB 가 저장됩니다. 필요한 결과를 받은 뒤에는 기록을 정리하세요.',
     refresh:'새로고침', clear:'기록 정리', seed_auto:'기본',
     help_need:'메시와 이미지를 넣으세요.', help_ready:'준비됐습니다. 처음이면 맞춤 미리보기로 빨간 선이 맞는지 먼저 보세요.',
-    help_busy:'작업 중입니다. 처음 실행은 모델을 받고 GPU 코드를 컴파일해서 오래 걸립니다(RTX 20 은 40분 이상). 화면이 멈춘 것처럼 보여도 기다리세요.',
+    help_busy:'작업 중입니다. 처음 실행은 모델(배경 지우기 모델 포함)을 받고 GPU 코드를 컴파일해서 오래 걸립니다(RTX 20 은 40분 이상). 화면이 멈춘 것처럼 보여도 기다리세요.',
     elapsed:'걸린 시간', st_running:'진행 중', st_succeeded:'완료', st_failed:'실패', st_cancelled:'멈춤', st_interrupted:'중단됨',
     failed_hint:'실패했습니다. 작업 로그의 마지막 30줄을 복사해서 LLM 모델에 공유해 주세요.',
     fit_line:(f)=>`겹침(IoU) ${f.silhouette_iou?.toFixed(3)} · 화각 ${f.fov_deg}° · 보정 회전 좌우 ${f.yaw_fix}° 위아래 ${f.pitch_fix}°`,
     low_iou:'겹침이 낮습니다. 로그에 --yaw 안내가 있으면 메시 방향 돌리기를 그 값으로 바꿔 보세요.',
     kind_preview:'맞춤 미리보기', kind_full:'텍스처 굽기', open:'열기 →', del:'지우기',
-    empty_history:'아직 작업이 없습니다.', uploading:'올리는 중…', err_no_alpha:'이미지에 투명 배경(알파)이 없습니다. 배경을 지운 PNG 를 넣으세요.',
+    empty_history:'아직 작업이 없습니다.', uploading:'올리는 중…', err_bad_image:'이미지를 열 수 없습니다. 다른 PNG / JPG 로 다시 저장해서 넣어 보세요.',
+    cutout_note:'이미지에 투명 배경이 없어서 배경을 자동으로 지웠습니다. 회색 바탕 위에 남은 부분이 지운 결과입니다. 물체 일부가 같이 지워졌거나 배경이 남았으면 배경을 직접 지운 투명 PNG 를 넣으세요.',
     err_bad_type:'지원하지 않는 파일 형식입니다.', err_busy:'다른 작업이 돌고 있습니다. 끝나거나 멈춘 뒤 다시 하세요.', err_generic:'요청이 실패했습니다.',
-    clear_ask:(u)=>`작업 기록과 올린 파일을 모두 지웁니다.\n\n작업 기록 ${u.jobs.count}개\n올린 파일 ${u.uploads.count}개\n합계 약 ${gb(u.jobs.bytes+u.uploads.bytes)} GB\n\n필요한 결과 GLB 는 먼저 받아 두세요. 지울까요?`,
+    clear_ask:(u)=>`작업 기록과 올린 파일을 모두 지웁니다.\n\n작업 기록 ${u.jobs.count}개\n올린 파일 ${u.uploads.count}개\n합계 약 ${gb(u.jobs.bytes+u.uploads.bytes+(u.cutouts?.bytes||0))} GB\n\n필요한 결과 GLB 는 먼저 받아 두세요. 지울까요?`,
     clear_empty:'지울 기록이 없습니다.', cleared:(b)=>`정리했습니다. 약 ${b} GB 를 비웠습니다.`,
     shutdown_ask:'워크벤치를 끌까요? 돌고 있는 작업이 있으면 멈춥니다.', shutdown_done:'워크벤치를 껐습니다. 이 탭과 검은 실행 창을 닫아도 됩니다.',
     del_ask:'이 작업 기록을 지울까요?', busy_badge:'작업 중',
   },
   en: {
     brand_sub:'Mesh texture baking workbench', nav_bake:'Bake texture', nav_history:'Task history', shutdown:'Close workbench',
-    bake_title:'Put PBR textures on a mesh from an image', bake_desc:'Add a mesh and an image of the same object with the background removed. Faces visible in the image follow the image; hidden faces are filled in by AI.',
-    step_input:'Input', mesh_label:'Mesh', mesh_hint:'GLB / OBJ / PLY / STL. Front facing forward (+Z, Blender front view)', image_label:'Image', image_hint:'Transparent PNG, background removed',
+    bake_title:'Put PBR textures on a mesh from an image', bake_desc:'Add a mesh and an image of the same object. The image background is removed automatically. Faces visible in the image follow the image; hidden faces are filled in by AI.',
+    step_input:'Input', mesh_label:'Mesh', mesh_hint:'GLB / OBJ / PLY / STL. Front facing forward (+Z, Blender front view)', image_label:'Image', image_hint:'PNG / JPG / WEBP. Background removed automatically',
     step_options:'Settings', opt_yaw:'Rotate mesh', opt_fov:'Field of view', auto:'Auto', opt_metal:'Metallic correction', opt_rough:'Roughness correction', opt_faces:'Max faces', opt_seed:'Seed',
     opt_rotate:'Auto-correct small rotations', opt_zup:'File is Z-up', opt_restore:'Return result to the original mesh position',
     opt_note:'Start with the defaults. For glossy objects such as glass, set roughness correction to 0. If metal is missed, lower metallic correction to 0.35.',
@@ -48,15 +49,16 @@ const T = {
     history_title:'Task history', history_desc:'Each task keeps its inputs, fit result, log and result GLB. Clear the history after you have downloaded what you need.',
     refresh:'Refresh', clear:'Clear history', seed_auto:'Default',
     help_need:'Add a mesh and an image.', help_ready:'Ready. The first time, use Fit preview to check the red line first.',
-    help_busy:'Working. The first run downloads models and compiles GPU code, so it takes long (40+ min on RTX 20). Wait even if it looks stuck.',
+    help_busy:'Working. The first run downloads models (including the background removal model) and compiles GPU code, so it takes long (40+ min on RTX 20). Wait even if it looks stuck.',
     elapsed:'Elapsed', st_running:'Running', st_succeeded:'Done', st_failed:'Failed', st_cancelled:'Stopped', st_interrupted:'Interrupted',
     failed_hint:'Failed. Copy the last 30 lines of the task log and share them with an LLM.',
     fit_line:(f)=>`Overlap (IoU) ${f.silhouette_iou?.toFixed(3)} · FOV ${f.fov_deg}° · rotation fix yaw ${f.yaw_fix}° pitch ${f.pitch_fix}°`,
     low_iou:'Low overlap. If the log suggests --yaw, set Rotate mesh to that value.',
     kind_preview:'Fit preview', kind_full:'Bake texture', open:'Open →', del:'Delete',
-    empty_history:'No tasks yet.', uploading:'Uploading…', err_no_alpha:'The image has no transparent background (alpha). Use a PNG with the background removed.',
+    empty_history:'No tasks yet.', uploading:'Uploading…', err_bad_image:'The image cannot be opened. Save it again as PNG / JPG and try again.',
+    cutout_note:'The image had no transparent background, so it was removed automatically. What remains on the gray background is the cut-out. If part of the object was removed or background is left, use a PNG with the background removed by hand.',
     err_bad_type:'Unsupported file type.', err_busy:'Another task is running. Try again after it finishes or is stopped.', err_generic:'The request failed.',
-    clear_ask:(u)=>`This deletes all task history and uploaded files.\n\nTasks: ${u.jobs.count}\nUploaded files: ${u.uploads.count}\nTotal: about ${gb(u.jobs.bytes+u.uploads.bytes)} GB\n\nDownload any result GLB you need first. Delete now?`,
+    clear_ask:(u)=>`This deletes all task history and uploaded files.\n\nTasks: ${u.jobs.count}\nUploaded files: ${u.uploads.count}\nTotal: about ${gb(u.jobs.bytes+u.uploads.bytes+(u.cutouts?.bytes||0))} GB\n\nDownload any result GLB you need first. Delete now?`,
     clear_empty:'There is nothing to clear.', cleared:(b)=>`Cleared about ${b} GB.`,
     shutdown_ask:'Close the workbench? A running task will be stopped.', shutdown_done:'The workbench is closed. You can close this tab and the black window.',
     del_ask:'Delete this task?', busy_badge:'Working',
@@ -86,7 +88,7 @@ async function api(path, opts = {}) {
   return data;
 }
 const post = (path, body) => api(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}) });
-function errText(e) { return ({ no_alpha: t('err_no_alpha'), bad_type: t('err_bad_type'), busy: t('err_busy') })[e.message] || t('err_generic'); }
+function errText(e) { return ({ bad_image: t('err_bad_image'), bad_type: t('err_bad_type'), busy: t('err_busy') })[e.message] || t('err_generic'); }
 
 document.querySelectorAll('.nav-item').forEach(b => b.onclick = () => {
   document.querySelectorAll('.nav-item').forEach(x => x.classList.toggle('active', x === b));
@@ -178,6 +180,7 @@ function renderJob(job) {
   $('#result').hidden = !(job.has_preview || job.has_result);
   if (job.has_preview && shownPreview !== job.id) { $('#fit-img').src = `/api/jobs/${job.id}/fit_preview.png?${Date.now()}`; shownPreview = job.id; }
   if (job.fit) $('#fit-text').textContent = t('fit_line', job.fit) + (job.fit.silhouette_iou < 0.8 ? ' — ' + t('low_iou') : '');
+  $('#cutout-note').hidden = !job.cutout; $('#cutout-note').textContent = t('cutout_note');
   const dl = $('#download');
   dl.hidden = !job.has_result;
   if (job.has_result) { dl.href = `/api/jobs/${job.id}/result.glb?download=1`; if (shownResult !== job.id) { shownResult = job.id; showModel(`/api/jobs/${job.id}/result.glb`); } }
@@ -239,10 +242,10 @@ $('#btn-clear').onclick = async () => {
   try {
     const s = await api('/api/status');
     if (s.busy) { toast(t('err_busy')); return; }
-    if (!s.usage.jobs.count && !s.usage.uploads.count) { toast(t('clear_empty')); return; }
+    if (!s.usage.jobs.count && !s.usage.uploads.count && !s.usage.cutouts?.count) { toast(t('clear_empty')); return; }
     if (!confirm(t('clear_ask', s.usage))) return;
     const r = await post('/api/clear');
-    toast(t('cleared', gb(r.before.jobs.bytes + r.before.uploads.bytes)));
+    toast(t('cleared', gb(r.before.jobs.bytes + r.before.uploads.bytes + (r.before.cutouts?.bytes || 0))));
     current = null; $('#result').hidden = true; clearModel(); shownResult = shownPreview = null;
     for (const k of ['mesh', 'image']) { inputs[k] = null; $('#' + k + '-name').textContent = ''; $('#drop-' + k).classList.remove('done'); }
     $('#image-thumb').hidden = true; $('#image-icon').hidden = false; refreshHelp(); loadHistory();

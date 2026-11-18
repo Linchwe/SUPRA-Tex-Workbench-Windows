@@ -14,12 +14,13 @@
 + The material model is replaced with SuperMat, which allows commercial use.
 + Memory use is reduced so it runs on 8GB cards. Precision is chosen automatically: bf16 on RTX 30 and newer, fp16 on RTX 20.
 + It lines up the mesh and the image automatically, and returns the result to the original mesh position.
++ If the image has a background, it is removed automatically.
 + It corrects metallic and roughness so non-metal parts such as skin and cloth do not look shiny.
 
 - Requirements
 + NVIDIA RTX 20 series or newer, 8GB VRAM or more
 + Graphics driver : a version that supports CUDA 12.8 (see 2)
-+ Disk space : about 25GB (Python environment about 7GB + models about 17GB)
++ Disk space : about 26GB (Python environment about 7GB + models about 18GB)
 
 - Tested hardware
 + RTX 3060 12GB : about 6 minutes per mesh + image
@@ -139,7 +140,11 @@ http://127.0.0.1:8390
 
 - Image
 + It must show the same object as the mesh, seen from the front.
-+ It must be a transparent PNG with the background removed. An image with a background is refused when uploaded.
++ Format : PNG / JPG / WEBP
++ A background is fine. For an image without a transparent background, the background is removed automatically with a background removal model (BiRefNet) when the task starts.
++ The first time, the background removal model (about 900MB) is downloaded into C:\Programs\SUPRA-Tex\models. After the background is removed, VRAM is freed before the next step.
++ The same image reuses the result from the first removal.
++ A transparent PNG with the background already removed is used as it is. If the automatic result is not good, use a PNG with the background removed by hand.
 + Pictures cut off at the image edge, such as a bust, are fine.
 
 - Which meshes match well
@@ -151,7 +156,7 @@ http://127.0.0.1:8390
 
 - 01 Input
 + Mesh box : Drag in the mesh prepared in 6, or click to choose it.
-+ Image box : Put in the image with the background removed.
++ Image box : Drag in the image prepared in 6, or click to choose it.
 
 - 02 Settings : Use them as they are at first.
 + Rotate mesh : Rotate by 90°, 180° or 270° when the mesh faces sideways or backwards.
@@ -164,10 +169,11 @@ http://127.0.0.1:8390
 + File is Z-up : off. Turn it on only for files saved with Z as up.
 + Return result to the original mesh position : on. The result comes out in the same position, size and direction as the original mesh, so you can overlay them in Blender.
 
-- "Fit preview (about 1 min)" only fits the camera, without the graphics card, and shows it in 03 Fit check. Checking a new mesh with this first is recommended.
+- "Fit preview (about 1 min)" only fits the camera and shows it in 03 Fit check. Checking a new mesh with this first is recommended.
++ For an image without a transparent background, Fit preview also removes the background first, so you can check the cut-out here.
 
 - "Start baking" runs the 5 steps below. The progress area shows the current step and the elapsed time.
-+ 1. Read mesh
++ 1. Read mesh : For an image without a transparent background, the background is also removed in this step.
 + 2. Fit camera
 + 3. Material maps : SuperMat
 + 4. Bake texture : SUPRA-Tex. This takes the longest.
@@ -182,6 +188,7 @@ http://127.0.0.1:8390
 
 - 03 Fit check
 + The mesh outline is drawn in red over the image. It is fine if it follows the object edge.
++ If the background was removed automatically, a notice appears under the picture. What remains on the gray background is the cut-out. If part of the object was removed or background is left, use a PNG with the background removed by hand and run again.
 + An overlap (IoU) of 0.9 or more is a good fit.
 + Below 0.8 a notice is shown. If the task log suggests a direction such as "--yaw 180", set Rotate mesh to that value and run again.
 
@@ -204,7 +211,7 @@ C:\Programs\SUPRA-Tex\workbench_data
 - In "Task history" on the left, reopen a past task with "Open →" to view and download its result. Delete them one by one with "Delete".
 
 - Cleaning up after downloading the result GLBs you need is recommended. Click "Clear history" at the top right of the "Task history" page, and click OK when the count and size are shown.
-+ All task history and uploaded files are deleted.
++ All task history, uploaded files and automatically cut-out images are deleted.
 + Result GLBs downloaded by the browser (Downloads folder) are not deleted.
 + Models (models folder) and the Python environment (.venv314) are not deleted.
 + If a task is running, nothing is deleted and only a notice is shown.
@@ -214,7 +221,11 @@ C:\Programs\SUPRA-Tex\workbench_data
 
 - When a task fails, the progress area shows "Failed" and the task log opens. Copy the last 30 lines of the log and share them with an LLM.
 
-- "no transparent background" when adding an image : Use a PNG with the background removed.
+- "The image cannot be opened" when adding an image : The file is broken or in an unsupported format. Save it again as PNG or JPG in an image editor and add it again.
+
+- "Stopped at background removal" in the log : Usually the background removal model could not be downloaded on the first run. Check the internet connection and run again. Adding a PNG with the background removed by hand skips this step.
+
+- "no object was found" in the log : The object is too small or cannot be told apart from the background. Use an image where the object is large and clear, or a PNG with the background removed by hand.
 
 - "Python 3.14 was not found" in Setup : Install Python 3.14 to C:\Programs\Python\Python314 as in 2. If you installed it somewhere else, tell Setup where it is with the line below in a cmd window, then run Setup-SUPRA-Tex.cmd from that same window.
 
@@ -258,6 +269,8 @@ set SUPRATEX_PYTHON=E:\your\path\python.exe
 
 - Windows CUDA extension builds (voxta-ai) : Follow the license of each original (CuMesh, FlexGEMM, nvdiffrast, o-voxel).
 
+- BiRefNet (background removal model) : MIT. Commercial use is allowed.
+
 - three.js (3D result view) : MIT.
 
 - Workbench page, mesh_texture.py, Windows patches : Additions on top of SUPRA-Tex. Without the precision and memory settings, they compute the same as the original.
@@ -265,4 +278,5 @@ set SUPRATEX_PYTHON=E:\your\path\python.exe
 - Sources
 + SUPRA-Tex : https://github.com/Supra-3D/SUPRA-Tex
 + SuperMat : https://github.com/hyj542682306/SuperMat
++ BiRefNet : https://github.com/ZhengPeng7/BiRefNet
 + Windows CUDA extension builds : https://github.com/voxta-ai/voxta-python-packaging/releases/tag/trellis2-wheels-1.0.0

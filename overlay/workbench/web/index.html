@@ -25,7 +25,7 @@
 <main>
   <section id="page-bake" class="page active">
     <header class="head">
-      <div><h1 data-i18n="bake_title">메시에 이미지로 PBR 텍스처 입히기</h1><p class="muted" data-i18n="bake_desc">같은 물체의 메시와, 배경을 지운 이미지를 넣으세요. 이미지에 보이는 면은 이미지를 따르고, 안 보이는 면은 AI 가 채웁니다.</p></div>
+      <div><h1 data-i18n="bake_title">메시에 이미지로 PBR 텍스처 입히기</h1><p class="muted" data-i18n="bake_desc">같은 물체의 메시와 이미지를 넣으세요. 이미지 배경은 자동으로 지웁니다. 이미지에 보이는 면은 이미지를 따르고, 안 보이는 면은 AI 가 채웁니다.</p></div>
     </header>
 
     <div class="grid">
@@ -40,11 +40,11 @@
             <div class="file-name" id="mesh-name"></div>
           </label>
           <label class="drop" id="drop-image">
-            <input type="file" id="file-image" accept=".png,.webp" hidden>
+            <input type="file" id="file-image" accept=".png,.webp,.jpg,.jpeg" hidden>
             <img id="image-thumb" alt="" hidden>
             <div class="drop-icon" id="image-icon">▣</div>
             <b data-i18n="image_label">이미지</b>
-            <small data-i18n="image_hint">배경을 지운 투명 PNG</small>
+            <small data-i18n="image_hint">PNG / JPG / WEBP. 배경은 자동으로 지움</small>
             <div class="file-name" id="image-name"></div>
           </label>
         </div>
@@ -89,6 +89,7 @@
         <h2><i>03</i> <span data-i18n="fit_title">맞춤 확인</span></h2>
         <img id="fit-img" alt="">
         <p class="small" id="fit-text"></p>
+        <p class="small" id="cutout-note" hidden></p>
         <p class="muted small" data-i18n="fit_note">빨간 선이 메시 윤곽입니다. 물체 테두리와 맞으면 정상입니다. 겹침이 0.8 보다 낮으면 메시 방향이나 이미지를 확인하세요.</p>
       </div>
       <div class="card">
